@@ -1,0 +1,7 @@
+N,Square,Nonneg,RowSum=1
+16,True,True,True
+32,True,True,True
+64,True,True,True
+128,True,True,True
+256,True,True,True
+512,True,True,True
