@@ -141,6 +141,8 @@ for ax, n in zip(axes.ravel(), N):
     ax.axhline(1 / n, color="gray", linestyle="--", linewidth=1, label="seragam 1/N")
     i = int(np.argmax(pi))
     ax.plot(i + 1, pi[i], "*", color=COLOR_DENSE, markersize=12, label=f"maks: halte {i + 1}")
+    j = int(np.argmin(pi))
+    ax.plot(j + 1, pi[j], "v", color="#ef6c00", markersize=9, label=f"min: halte {j + 1}")
     ax.set_title(f"N = {n}")
     ax.set_xlabel("nomor halte i")
     ax.set_ylabel(r"$\pi_i$")
@@ -164,6 +166,71 @@ ax.legend(fontsize=9)
 fig.tight_layout()
 fig.savefig("plots/08_profil_pi_ternormalisasi.png")
 plt.close(fig)
+
+# 9. (poin viii, penjelasan) pi_i dan drift per halte untuk N = 512
+n_focus = 512
+T_focus = np.loadtxt(f"data/T_{n_focus}.csv", delimiter=",")
+pi_f = pis[f"pi_banded_{n_focus}"]
+idx = np.arange(1, n_focus + 1)
+drift = T_focus @ idx - idx   # drift_i = sum_j T_ij * j - i
+
+i_max = int(np.argmax(pi_f)) + 1
+i_min = int(np.argmin(pi_f)) + 1
+
+# drift di bagian dalam koridor (tanpa 10 halte di tiap ujung), skala diperbesar
+inner = slice(10, n_focus - 10)
+fig, ax = plt.subplots(figsize=(9, 3.5))
+ax.plot(idx[inner], drift[inner], color=COLOR_BAND)
+ax.axhline(0, color="gray", linestyle="--")
+ax.axvline(i_max, color=COLOR_DENSE, linestyle=":", label=f"maks: halte {i_max}")
+ax.axvline(i_min, color="#ef6c00", linestyle=":", label=f"min: halte {i_min}")
+ax.set_xlabel("nomor halte i")
+ax.set_ylabel("drift")
+ax.set_title("Drift di bagian dalam koridor (N = 512)")
+ax.legend(fontsize=8)
+fig.tight_layout()
+fig.savefig("plots/10_drift_bagian_dalam.png")
+plt.close(fig)
+
+# rata-rata drift 30 halte di kiri dan kanan titik maks dan min
+def win(i, w=30):
+    return drift[i - 1 - w:i - 1].mean(), drift[i:i + w].mean()
+print("sekitar maks (kiri, kanan):", win(i_max))
+print("sekitar min  (kiri, kanan):", win(i_min))
+
+# variansi lompatan lokal dan hasil kali pi * variansi
+var = np.array([T_focus[i] @ (idx - (i + 1)) ** 2 for i in range(n_focus)])
+prod = (pi_f * var)[10:-10]
+print("pi*variansi di bagian dalam: rata-rata", prod.mean(), "simpangan relatif", prod.std() / prod.mean())
+
+fig, ax1 = plt.subplots(figsize=(9, 4.5))
+l1, = ax1.plot(idx, pi_f, color="#1565c0", linewidth=1.5, label=r"$\pi_i$")
+ax1.axvline(i_max, color=COLOR_DENSE, linestyle=":", linewidth=1.2, label=f"maks: halte {i_max}")
+ax1.axvline(i_min, color="#ef6c00", linestyle=":", linewidth=1.2, label=f"min: halte {i_min}")
+ax1.set_xlabel("nomor halte i")
+ax1.set_ylabel(r"$\pi_i$", color="#1565c0")
+
+ax2 = ax1.twinx()
+ax2.grid(False)
+l2, = ax2.plot(idx, drift, color=COLOR_BAND, linewidth=1, alpha=0.85, label="drift")
+ax2.axhline(0, color="gray", linestyle="--", linewidth=1)
+ax2.set_ylabel(r"drift $=\sum_j T_{ij}\,j - i$", color=COLOR_BAND)
+
+handles = [l1, l2] + ax1.lines[1:3]
+ax1.legend(handles=handles, labels=[h.get_label() for h in handles], fontsize=8, loc="upper right")
+ax1.set_title(f"Distribusi steady state dan drift per halte (N = {n_focus})")
+fig.tight_layout()
+fig.savefig("plots/09_pi_dan_drift_N512.png")
+plt.close(fig)
+
+# cek hipotesis: di mana drift berganti tanda
+sb = np.signbit(drift)
+cross = np.where(sb[:-1] != sb[1:])[0]
+cross = cross[(cross > 10) & (cross < n_focus - 10)]   # buang lonjakan di ujung
+plus_to_minus = [int(i) + 1 for i in cross if not sb[i]]
+minus_to_plus = [int(i) + 1 for i in cross if sb[i]]
+print("+ ke -:", plus_to_minus)
+print("- ke +:", minus_to_plus)
 
 print("Semua grafik tersimpan di folder plots/")
 for f in sorted(__import__("os").listdir("plots")):
