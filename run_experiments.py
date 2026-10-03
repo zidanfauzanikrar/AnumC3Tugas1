@@ -8,7 +8,7 @@ from solvers import (
     compute_bandwidth, build_system, recover_T_from_B, theory_flops,
     lu_dense_partial_pivot, solve_dense_lu, inverse_via_lu,
     compute_bandwidth_from_T, build_band_from_T, build_band_storage,
-    solve_banded_thomas,
+    solve_banded_thomas, condition_inf,
 )
 
 NPZ_PATH = "output_B_b/B_b_all.npz"
@@ -40,8 +40,14 @@ def peak_memory_bytes(fn):
 def condition_number(B, ord_=NORM_ORD):
     Binv = inverse_via_lu(B)
     kappa = np.linalg.norm(B, ord=ord_) * np.linalg.norm(Binv, ord=ord_)
-    kappa_np = np.linalg.norm(B, ord=ord_) * np.linalg.norm(np.linalg.inv(B), ord=ord_)
-    return kappa, abs(kappa - kappa_np) / kappa_np
+    return float(kappa)
+
+def normalized_backward_error(B, x, b):
+    residual = B @ x - b
+    denom = np.linalg.norm(B, ord=np.inf) * np.linalg.norm(x, ord=np.inf) + np.linalg.norm(b, ord=np.inf)
+    if denom == 0.0:
+        return float(np.linalg.norm(residual, ord=np.inf))
+    return float(np.linalg.norm(residual, ord=np.inf) / denom)
 
 def load_T(data, N, B):
     if f"T_{N}" in data.files:
@@ -53,12 +59,13 @@ def load_T(data, N, B):
 
 def validate_input(N, B, b, T, T_src):
     assert B.shape == (N, N) and b.shape == (N,), f"shape salah untuk N={N}"
+    assert T.shape == (N, N) and np.all(np.isfinite(T)) and np.all(T >= 0), f"T tidak valid untuk N={N}"
     e1 = np.zeros(N); e1[0] = 1.0
     assert np.allclose(B[0], e1), (
         f"N={N}: baris 0 B bukan [1,0,...,0]. Jika Role 1 memakai baris "
         "normalisasi [1,1,...,1], pita rusak (q = N-1) -> solver banded tidak bermakna.")
     assert np.allclose(b, e1), f"N={N}: b bukan e1"
-    assert np.allclose(T.sum(axis=1), 1.0, atol=1e-10), f"N={N}: T bukan stokastik baris"
+    assert np.allclose(T.sum(axis=1), 1.0, atol=1e-10, rtol=0.0), f"N={N}: T bukan stokastik baris"
     if T_src != "rekonstruksi":
         _, B_chk, _ = build_system(T)
         assert np.allclose(B, B_chk, atol=1e-12), f"N={N}: B tidak konsisten dengan T"
@@ -105,11 +112,14 @@ def run_small_tests():
           np.array_equal(build_band_from_T(T, p, q), build_band_storage(B, p, q)))
     L, U, P = lu_dense_partial_pivot(B)
     check("PB = LU", np.allclose(B[P], L @ U, atol=1e-14))
-    z_ref = np.linalg.solve(B, b)
+    z_known = np.arange(1.0, len(b) + 1.0)
+    rhs_known = B @ z_known
+    z_known_dense = solve_dense_lu(L, U, P, rhs_known)
+    z_known_band = solve_banded_thomas(build_band_from_T(T, p, q), p, q, rhs_known)
     z_d = solve_dense_lu(L, U, P, b)
     z_b = solve_banded_thomas(build_band_from_T(T, p, q), p, q, b)
-    check("dense  = numpy.linalg.solve", np.allclose(z_d, z_ref, rtol=1e-12))
-    check("banded = numpy.linalg.solve", np.allclose(z_b, z_ref, rtol=1e-12))
+    check("dense: solusi buatan diketahui", np.allclose(z_known_dense, z_known, rtol=1e-12))
+    check("banded: solusi buatan diketahui", np.allclose(z_known_band, z_known, rtol=1e-12))
     pi = z_b / z_b.sum()
     check("T^T pi = pi", np.linalg.norm(T.T @ pi - pi) < 1e-14)
     check("pi >= 0", pi.min() >= 0)
@@ -131,10 +141,25 @@ def run_small_tests():
         pp, qq = compute_bandwidth(M)
         for x in (solve_dense_lu(Lm, Um, Pm, rhs),
                   solve_banded_thomas(build_band_storage(M, pp, qq), pp, qq, rhs)):
-            # galat mundur ternormalisasi: ||Mx-b|| / (||M|| ||x||), stabil bila - eps
-            worst = max(worst, np.linalg.norm(M @ x - rhs) / (np.linalg.norm(M, 2) * np.linalg.norm(x)))
+            # Galat mundur memakai norma infinity.
+            worst = max(worst, normalized_backward_error(M, x, rhs))
     print(f"  {n_swap}/200 kasus melakukan pertukaran baris")
     check(f"galat mundur maks {worst:.1e} < 1e-13", worst < 1e-13)
+
+    # Pivot terakhir nol harus ditolak, termasuk matriks 1 x 1.
+    for singular in (np.array([[1.0, 1.0], [1.0, 1.0]]), np.zeros((1, 1))):
+        p, q = compute_bandwidth(singular)
+        for name, solver in (
+            ("dense", lambda: lu_dense_partial_pivot(singular)),
+            ("banded", lambda: solve_banded_thomas(
+                build_band_storage(singular, p, q), p, q, np.ones(len(singular)))),
+        ):
+            try:
+                solver()
+            except (ValueError, np.linalg.LinAlgError):
+                check(f"{name}: pivot terakhir nol, N={len(singular)}", True)
+            else:
+                check(f"{name}: pivot terakhir nol, N={len(singular)}", False)
 
     n_ok = sum(results)
     print(f"\n{n_ok}/{len(results)} uji lulus")
@@ -188,15 +213,21 @@ for N in N_LIST:
     e_band = abs(pi_band.sum() - 1.0)
     diff_methods = np.max(np.abs(pi_dense - pi_band))
     min_pi = min(pi_dense.min(), pi_band.min()) # distribusi stasioner harus >= 0
-    cond_B, cond_relerr_np = condition_number(B)
+    cond_B = condition_number(B)
+    cond_B_inf = condition_inf(B)
+    Bz_res_dense = float(np.linalg.norm(B @ z_dense - b, ord=np.inf))
+    Bz_res_band = float(np.linalg.norm(B @ z_band - b, ord=np.inf))
+    backward_dense = normalized_backward_error(B, z_dense, b)
+    backward_band = normalized_backward_error(B, z_band, b)
 
-    # galat maju "sebenarnya": pembanding pi dari LU yang sama dalam long double (80-bit)
+    # Estimasi galat terhadap solusi LU longdouble; bukan solusi eksak.
+    # Presisi longdouble bergantung platform, bisa sama dengan float64.
     Lx, Ux, Px = lu_dense_partial_pivot(B, dtype=np.longdouble)
     z_ref = solve_dense_lu(Lx, Ux, Px, b.astype(np.longdouble))
     pi_ref = z_ref / z_ref.sum()
     fwd_dense = float(np.max(np.abs(pi_dense - pi_ref)) / np.max(np.abs(pi_ref)))
     fwd_band = float(np.max(np.abs(pi_band - pi_ref)) / np.max(np.abs(pi_ref)))
-    bound = cond_B * np.finfo(float).eps / 2          # kappa * u, u = unit roundoff
+    bound = cond_B * np.finfo(float).eps / 2  # indikator sensitivitas, bukan batas galat universal
 
     # teori (poin vi)
     mem_dense_theory = 2 * N * N * 8 # L + U, masing-masing N x N
@@ -213,11 +244,18 @@ for N in N_LIST:
         "mem_banded_measured_KB": mem_band / 1024,
         "mem_dense_theory_KB": mem_dense_theory / 1024,
         "mem_banded_theory_KB": mem_band_theory / 1024,
-        "cond_B_1norm": cond_B, "cond_relerr_vs_numpy": cond_relerr_np,
+        "cond_B_1norm": cond_B,
+        "cond_B_infnorm": cond_B_inf,
         "r_dense": r_dense, "r_banded": r_band,
         "e_dense": e_dense, "e_banded": e_band,
+        "Bz_residual_dense_inf": Bz_res_dense,
+        "Bz_residual_banded_inf": Bz_res_band,
+        "backward_err_dense_inf": backward_dense,
+        "backward_err_banded_inf": backward_band,
         "max_diff_dense_vs_banded": diff_methods,
         "fwd_err_dense": fwd_dense, "fwd_err_banded": fwd_band, "kappa_x_u": bound,
+        "longdouble_eps": float(np.finfo(np.longdouble).eps),
+        "reference_higher_precision": bool(np.finfo(np.longdouble).eps < np.finfo(float).eps),
         "min_pi": min_pi,
         "halte_pi_max": int(np.argmax(pi_band)) + 1, "pi_max": float(pi_band.max()),
         "halte_pi_min": int(np.argmin(pi_band)) + 1, "pi_min": float(pi_band.min()),
