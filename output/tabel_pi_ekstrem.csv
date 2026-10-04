@@ -1,4 +1,4 @@
-N,Halte π maks,π maks,Posisi relatif maks (%),Halte π min,π min,Posisi relatif min (%),Rasio maks/min
+N,Halte π maks,π maks,Posisi maks (%),Halte π min,π min,Posisi min (%),Rasio maks/min
 16,7,0.077528,43.75,12,0.031281,75.0,2.48
 32,4,0.038944,12.5,24,0.01559,75.0,2.5
 64,7,0.019516,10.94,48,0.007799,75.0,2.5
