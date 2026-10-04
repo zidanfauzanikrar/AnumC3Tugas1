@@ -1,0 +1,8 @@
+Rt = +0.001513374224 +0.1721528973 R(t-1) +0.166072851 R(t-2), jika R(t-1) >= 0
+Rt = -0.001212688554 -0.3603768239 R(t-1) -0.1098080385 R(t-2), jika R(t-1) < 0
+Persamaan di atas adalah prediksi; model stokastik menambahkan epsilon_t.
+Bullish, lag 1: +0.1721529 mengindikasikan penerusan arah (momentum), dengan prediktor lain tetap.
+Bullish, lag 2: +0.16607285 mengindikasikan penerusan arah (momentum), dengan prediktor lain tetap.
+Bearish, lag 1: -0.36037682 mengindikasikan pembalikan arah, dengan prediktor lain tetap.
+Bearish, lag 2: -0.10980804 mengindikasikan pembalikan arah, dengan prediktor lain tetap.
+Tanda koefisien per lag tidak membuktikan stasioneritas/mean reversion global SETAR; dinamika kedua lag dan perpindahan rezim juga berpengaruh.
