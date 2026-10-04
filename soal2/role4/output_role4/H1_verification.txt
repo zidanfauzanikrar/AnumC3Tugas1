@@ -1,0 +1,6 @@
+H1 = I - 2 v1 v1^T; H1 berukuran 300 x 300.
+Norma kolom pertama = 13.96424004376894.
+Kolom pertama H1A adalah -norma(A[:,0])*e1 hingga pembulatan.
+Max subdiagonal kolom pertama H1A: 6.106227e-16.
+H1 dan H1A lengkap tersimpan di matrices_and_H1.npz.
+H1A_preview.csv berisi sepuluh baris pertama, bukan matriks lengkap.

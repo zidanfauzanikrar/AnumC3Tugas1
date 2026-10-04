@@ -1,0 +1,54 @@
+{
+  "dataset": "USER_CSV",
+  "train_file": "/Users/nandapascua/AnumC3Tugas1/soal2/data/stock_train.csv",
+  "test_file": "/Users/nandapascua/AnumC3Tugas1/soal2/data/stock_test.csv",
+  "test_mode": "continuous",
+  "A_shape": [
+    300,
+    6
+  ],
+  "A_test_shape": [
+    103,
+    6
+  ],
+  "regime1_train": 195,
+  "regime2_train": 105,
+  "kappa2_A": 192.60541021575762,
+  "kappa2_AtA": 37096.8440443803,
+  "H1_subdiagonal_max": 6.106226635438361e-16,
+  "H1_orthogonality_max": 3.3306690738754696e-15,
+  "QR_factorization_max": 3.4230053607079605e-15,
+  "Q_orthogonality_max": 1.3322676295501878e-15,
+  "chosen_method": "QR_implicit",
+  "failures": {},
+  "role3_crosscheck": {
+    "status": "IDENTICAL_A_AND_B",
+    "max_difference_A": 0.0,
+    "max_difference_b": 0.0,
+    "regime1": 195,
+    "regime2": 105,
+    "notebook_sha256": "f88261625e507b3a0b80000a35f7ef0df2764a1c5ffb664b982383f7a3a1d99b"
+  },
+  "selection_reason": "Pilihan berdasarkan stabilitas algoritma, bukan pemilihan pada test set.",
+  "python": "3.9.6",
+  "numpy": "2.0.2",
+  "platform": "macOS-15.7.3-x86_64-i386-64bit",
+  "repeats": 7,
+  "price_column": "auto",
+  "evaluation": "One-step-ahead menggunakan lag aktual; parameter di-fit hanya pada train.",
+  "coefficient_difference_max": 5.551115123125783e-17,
+  "outlier_contribution": {
+    "train_largest_residual_sse_share": 0.09362102332857948,
+    "test_largest_residual_sse_share": 0.3659417000916331,
+    "test_largest_residual_date": "2024-12-31"
+  },
+  "synthetic_shock": {
+    "label": "SENSITIVITY_ONLY_NOT_REAL_DATA",
+    "price_drop_fraction": 0.2,
+    "price_row_1based": 28,
+    "baseline_train_sse": 0.02340197780051565,
+    "shocked_sse_fixed_model": 0.114037643816046,
+    "shocked_sse_refit": 0.08034285842827578,
+    "coefficient_change_l2": 0.7680412903537309
+  }
+}
